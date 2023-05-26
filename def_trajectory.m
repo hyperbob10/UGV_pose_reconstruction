@@ -1,0 +1,91 @@
+%%Simulation with the new trajectory
+close all
+clearvars 
+run initializeUnicycleModel.m
+T = 120;   %simulation time
+Ts = 0.01; %sample time
+% count = T/Ts + 1; %%prova per vedere se numero di sample è ok
+r0 = 8;
+x0 = 0; %x_0 and y_0 defines the center of the circle
+y0 = 0;
+theta_samples = T/Ts + 1;
+rect_samples = ceil(theta_samples / (2*pi));
+theta = linspace(0,2*pi, (theta_samples - rect_samples));
+coords_x(:,1) = [linspace(0,T,theta_samples)];
+coords_x(:,2) = [linspace(0, r0, rect_samples) r0*cos(theta) + x0];
+coords_y(:,1) = [linspace(0,T,theta_samples)];
+coords_y(:,2) = [zeros(1,rect_samples) r0*sin(theta) + y0];
+theta_des(:,1) = linspace(0,T,theta_samples);
+for i = 1:rect_samples
+    theta_des(i,2) = 0;
+end
+
+%% finding the heading direction
+%% vector from the center to the given point
+%%here polyfit must be used in order to find out different rect
+%%i coeffs x dentro al poly vanno messi con i tempi non con i numeri di
+%%samples
+coeffs = polyfit([rect_samples*Ts, theta_samples*Ts], [pi/2, (5*pi)/2], 1);
+a = coeffs(1);
+b = coeffs(2);
+for i = rect_samples:theta_samples
+    theta_des(i,2) = a*theta_des(i,1) + b;
+end
+
+v_des = (2*pi*r0)/(T);
+w_des = (2*pi)/T;
+
+%%% Parameters for the controller
+csi = 0.5;   %damping factor
+a = 8;     %natural frequency
+k1 = 2*csi*a;
+k2 = (a^2 - w_des^2)/(v_des);
+k3 = k1; % k3 must be equal to k1
+
+
+sim('trajectory_ctrl_unicycle',T); 
+
+figure;
+subplot(3,1,1)
+plot(coords_x(:,2),coords_y(:,2));
+axis equal
+hold on
+plot(coords_x(1,2),coords_y(1,2), 'r.', 'MarkerSize', 25);
+quiver(coords_x(1,2), 0, r0/2, 0,'color', [1 0 0], 'LineWidth', 1);
+title('Desired trajectory to be control')
+legend('desired trajectory', 'starting point','starting heading dir.')
+subplot(3,1,2)
+plot(coords_x(:,1),coords_x(:,2))
+axis([0 T -8 8])
+legend('x des [m]')
+subplot(3,1,3)
+plot(coords_y(:,1),coords_y(:,2))
+axis([0 T -8 8])
+legend('y des [m]')
+figure;
+plot(theta_des(:,1),theta_des(:,2));
+axis([0 T -2 8])
+legend('theta des [rad]')
+
+%%plotting the result
+x_out = ans.output.signals(1).values;
+y_out = ans.output.signals(2).values;
+e1 = ans.error.signals(1).values;
+e2 = ans.error.signals(2).values;
+e3 = ans.error.signals(3).values;
+time = ans.tout;
+figure;
+plot(x_out, y_out);
+axis equal
+hold on
+plot(coords_x(:,2),coords_y(:,2));
+quiver(coords_x(1,2),0,r0/2,0,'color', [1 0 0], 'LineWidth', 0.5);
+quiver(x_out(length(x_out), 1), y_out(length(y_out), 1), 0, r0/2,'color', [0 0 1], 'LineWidth', 0.5);
+legend('real','des', 'starting heading dir.', 'final heading dir.')
+figure;
+subplot(3,1,1)
+plot(time, e1);
+subplot(3,1,2)
+plot(time, e2);
+subplot(3,1,3)
+plot(time, e3);
